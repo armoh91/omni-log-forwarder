@@ -110,6 +110,41 @@ mod tests {
     }
 
     #[test]
+    fn otlp_auth_header_overrides_the_key_header() {
+        // With otlp_auth_header set, the ingest key must ride on that header
+        // (Bearer-token backends, Honeycomb, etc.) and NOT on the api-key default.
+        let config = json!({
+            "otlp_endpoint": ENDPOINT,
+            "otlp_api_key": LICENSE_KEY,
+            "otlp_auth_header": "Authorization",
+            "loggingConfigurations": [{
+                "configurationName": "access-log",
+                "message": dw2pel("attributes.method"),
+                "afterCallingApi": true
+            }],
+            "batch_max_size": 100,
+            "export_timeout_ms": 100
+        })
+        .to_string();
+        let (mut tester, endpoint) = tester_with(config);
+
+        tester.request(UnitHttpRequest::get().with_path("/orders/echo"));
+        tester.sleep(Duration::from_millis(500));
+
+        let otlp = endpoint.next().expect("endpoint should have received an OTLP export");
+        assert_eq!(
+            otlp.header("Authorization").as_deref(),
+            Some(LICENSE_KEY),
+            "configured auth header must carry the ingest key"
+        );
+        assert_eq!(
+            otlp.header("api-key"),
+            None,
+            "default api-key header must not be sent when overridden"
+        );
+    }
+
+    #[test]
     fn conditional_true_forwards_the_message() {
         let config = config_with(json!([{
             "configurationName": "only-gets",

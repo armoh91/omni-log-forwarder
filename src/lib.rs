@@ -357,6 +357,10 @@ async fn export_loop(
     service_instance_id: &str,
 ) {
     let batch_max_size = normalize_usize(config.batch_max_size, DEFAULT_BATCH_MAX_SIZE);
+    let auth_header = config
+        .otlp_auth_header
+        .clone()
+        .unwrap_or_else(|| "api-key".to_string());
 
     while timer.next_tick().await {
         while otel::queue_len() > 0 {
@@ -373,7 +377,7 @@ async fn export_loop(
                 .path("/v1/logs")
                 .headers(vec![
                     ("content-type", "application/json"),
-                    ("api-key", config.otlp_api_key.as_str()),
+                    (auth_header.as_str(), config.otlp_api_key.as_str()),
                 ])
                 .body(&body)
                 .post()

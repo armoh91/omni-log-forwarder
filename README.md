@@ -1,4 +1,4 @@
-# `omni-log-forwarder` Policy
+# OTLP Log Forwarder (`omni-log-forwarder`)
 
 > A vendor-neutral OTLP log-forwarding policy for MuleSoft Omni Gateway (Flex
 > Gateway). Works with any OpenTelemetry-compatible logs backend.
@@ -17,8 +17,10 @@ per configuration (**Also Log to Message Logs**) to forward to OTLP only.
 - Works with **any OTLP/HTTP logs backend** that accepts `POST /v1/logs` — an
   OpenTelemetry Collector, or a managed observability platform's OTLP ingest
   endpoint.
-- If your platform requires an ingest key/token, the policy sends it on the
-  `api-key` request header.
+- If your platform requires an ingest key/token, the policy sends it on a
+  configurable auth header — `api-key` by default (New Relic convention), or set
+  **Auth Header Name** to `Authorization` (Bearer-token backends like Grafana
+  Cloud / a generic OTel Collector), `x-honeycomb-team` (Honeycomb), etc.
 
 ---
 
@@ -168,7 +170,8 @@ Configured exactly like OOTB Message Logging, plus the OTLP sink settings.
 | Field | Required | Description |
 |---|---|---|
 | **OTLP Ingestion Endpoint** (`otlp_endpoint`) | ✅ | Base URL of the observability platform's OTLP/HTTP receiver. Lines are POSTed to `<endpoint>/v1/logs`. |
-| **Ingest Key / Token** (`otlp_api_key`) | ✅ | Ingest credential for the platform, sent verbatim on the `api-key` header. Stored/displayed as a **secret**. |
+| **Ingest Key / Token** (`otlp_api_key`) | ✅ | Ingest credential for the platform, sent verbatim on the configured auth header. Stored/displayed as a **secret**. |
+| **Auth Header Name** (`otlp_auth_header`) | | Request header the ingest key is sent on. Default `api-key` (New Relic). Use `Authorization` for Bearer-token backends (Grafana Cloud, generic OTel Collector), `x-honeycomb-team` for Honeycomb, etc. Include any scheme prefix (e.g. `Bearer `) in the key itself. |
 | **Batch Max Size** (`batch_max_size`) | | Max records per export batch. Default `512`. |
 | **Export Timeout (ms)** (`export_timeout_ms`) | | Background flush interval. Default `1000`. |
 
@@ -203,6 +206,7 @@ config:
       afterCallingApi: false
   otlp_endpoint: https://otlp.your-observability-platform.example/
   otlp_api_key: YOUR_OTLP_INGEST_KEY_HERE
+  # otlp_auth_header: api-key   # optional; e.g. Authorization / x-honeycomb-team
   batch_max_size: 512
   export_timeout_ms: 1000
 ```

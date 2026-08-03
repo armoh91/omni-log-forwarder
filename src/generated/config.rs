@@ -28,6 +28,8 @@ pub struct Config {
     pub logging_configurations: Vec<LoggingConfigurations0Config>,
     #[serde(alias = "otlp_api_key")]
     pub otlp_api_key: String,
+    #[serde(alias = "otlp_auth_header")]
+    pub otlp_auth_header: Option<String>,
     #[serde(
         alias = "otlp_endpoint",
         deserialize_with = "pdk::serde::deserialize_service"

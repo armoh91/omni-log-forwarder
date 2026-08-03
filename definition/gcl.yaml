@@ -3,7 +3,7 @@ apiVersion: gateway.mulesoft.com/v1alpha1
 kind: Extension
 metadata:
   labels:
-    title: omni-log-forwarder
+    title: OTLP Log Forwarder
     description: >-
       Behaves exactly like the out-of-the-box MuleSoft "Message Logging" policy —
       a repeatable list of DataWeave-driven log configurations — but instead of
@@ -12,8 +12,9 @@ metadata:
       no added latency on the request path. Each configuration renders a
       DataWeave message (optionally gated by a DataWeave conditional) in the
       request and/or response phase; the result is batched and POSTed to
-      <endpoint>/v1/logs with the ingest key on the api-key header.
-    category: Custom
+      <endpoint>/v1/logs with the ingest key on a configurable auth header
+      (defaults to api-key).
+    category: Troubleshooting
     metadata/interfaceScope: api,resource
 spec:
   extends:
@@ -145,17 +146,28 @@ spec:
       type: string
       format: service
     otlp_api_key:
-      title: Ingest License Key (api-key)
+      title: Ingest License Key
       description: >-
         Ingest license key for the observability platform. Sent verbatim as the
-        'api-key' header on every outbound OTLP transmission. Stored and
-        displayed as a secret.
+        value of the configured auth header (see 'otlp_auth_header', default
+        'api-key') on every outbound OTLP transmission. Stored and displayed as
+        a secret.
       type: string
       # Secret masking: marks the value sensitive so Anypoint/API Manager masks
       # it in the UI and never renders it in plaintext.
       "@context":
         "@characteristics":
           - security:sensitive
+    otlp_auth_header:
+      title: Auth Header Name
+      description: >-
+        Name of the request header the ingest key is sent on. Defaults to
+        'api-key' (New Relic convention). Use 'Authorization' for Bearer-token
+        backends (e.g. Grafana Cloud, generic OTel Collector), 'x-honeycomb-team'
+        for Honeycomb, etc. The value sent is 'otlp_api_key' verbatim — include
+        any scheme prefix (e.g. 'Bearer ') in the key itself.
+      type: string
+      default: api-key
     # =========================================================================
     # Exporter tuning (optional)
     # =========================================================================
