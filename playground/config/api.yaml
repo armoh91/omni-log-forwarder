@@ -1,0 +1,47 @@
+# Copyright 2026 Salesforce, Inc. All rights reserved.
+---
+apiVersion: gateway.mulesoft.com/v1alpha1
+kind: ApiInstance
+metadata:
+  name: ingress-http
+spec:
+  address: http://0.0.0.0:8081
+  services:
+    upstream:
+      address: http://backend
+      routes:
+        - config:
+            destinationPath: /anything/echo/
+  policies:
+    - policyRef:
+        name: omni-log-forwarder-flex-v1-0 # This value will be overriden during 'make run' execution
+      # Behaves like OOTB "Message Logging": a repeatable list of DataWeave-driven
+      # log configurations. Each rendered line is forwarded to otlp_endpoint
+      # (POST <endpoint>/v1/logs) with the ingest key on the `api-key` header.
+      config:
+        loggingConfigurations:
+          # An access-log line emitted AFTER the upstream API replies. Uses the
+          # response status code, so it must run in the response phase.
+          - configurationName: access-log
+            message: "#[attributes.method ++ ' ' ++ attributes.requestUri ++ ' -> ' ++ attributes.statusCode]"
+            level: INFO
+            category: ACCESS
+            beforeCallingApi: false
+            afterCallingApi: true
+          # An inbound audit line emitted BEFORE calling the API, gated by a
+          # DataWeave conditional (only when the x-audit header equals 'true').
+          - configurationName: inbound-audit
+            message: "#['inbound ' ++ attributes.method ++ ' from ' ++ (attributes.headers['x-client-id'] default 'anonymous')]"
+            conditional: "#[attributes.headers['x-audit'] == 'true']"
+            level: DEBUG
+            category: AUDIT
+            beforeCallingApi: true
+            afterCallingApi: false
+        # Base URL of your OTLP/HTTP observability platform (lines are POSTed to
+        # <endpoint>/v1/logs). Replace with your platform's ingestion endpoint.
+        otlp_endpoint: https://otlp.your-observability-platform.example/
+        # Placeholder — replace with a real ingest key/token to send live data.
+        # Do NOT commit a real key.
+        otlp_api_key: YOUR_OTLP_INGEST_KEY_HERE
+        batch_max_size: 512
+        export_timeout_ms: 1000

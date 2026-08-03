@@ -1,0 +1,46 @@
+# Copyright 2026 Salesforce, Inc. All rights reserved.
+[package]
+name = "omni_log_forwarder"
+version = "1.0.0"
+rust-version = "1.88.0"
+edition = "2018"
+resolver = "2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package.metadata.anypoint]
+group_id = "YOUR_ANYPOINT_BUSINESS_GROUP_ID"
+definition_asset_id = "omni-log-forwarder"
+implementation_asset_id = "omni-log-forwarder-flex"
+
+# This policy is built on the PDK High-Level (pdk::hl) framework so it can
+# evaluate the operator-supplied DataWeave expressions (Message / Conditional)
+# via `pdk::script` — exactly like the OOTB Message Logging policy — and forward
+# each rendered log line to an OTLP ingestion endpoint.
+[dependencies]
+pdk = { version = "1.9.2" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+anyhow = "1.0"
+# Async task composition (join! the background exporter with the filter launch).
+futures = { version = "0.3", default-features = false, features = ["async-await"] }
+
+[dev-dependencies]
+# Native unit-test harness (no Docker / Envoy needed). `experimental` unlocks
+# `with_entrypoint`, `dw2pel`, and the property/backend helpers used in tests.
+pdk-unit = { version = "1.9.2", features = ["experimental"] }
+# Docker-based integration harness (real Flex Gateway on port 8081).
+pdk-test = { version = "1.9.2" }
+httpmock = "0.6"
+reqwest = "0.11"
+# The #[pdk_test] runner provides a multi-thread tokio runtime with all drivers
+# enabled; we use tokio::time::sleep to wait for the async exporter to flush.
+tokio = { version = "1", features = ["time", "macros"] }
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+lto = true
+opt-level = 'z'
+strip = "debuginfo"

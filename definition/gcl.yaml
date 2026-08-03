@@ -1,0 +1,175 @@
+---
+apiVersion: gateway.mulesoft.com/v1alpha1
+kind: Extension
+metadata:
+  labels:
+    title: omni-log-forwarder
+    description: >-
+      Behaves exactly like the out-of-the-box MuleSoft "Message Logging" policy —
+      a repeatable list of DataWeave-driven log configurations — but instead of
+      writing each rendered line to the local gateway log, it forwards the line
+      to any OTLP/HTTP ingestion endpoint asynchronously, with
+      no added latency on the request path. Each configuration renders a
+      DataWeave message (optionally gated by a DataWeave conditional) in the
+      request and/or response phase; the result is batched and POSTed to
+      <endpoint>/v1/logs with the ingest key on the api-key header.
+    category: Custom
+    metadata/interfaceScope: api,resource
+spec:
+  extends:
+    - name: extension-definition
+      namespace: default
+  properties:
+    # =========================================================================
+    # Logging Configuration
+    # -------------------------------------------------------------------------
+    # This block behaves EXACTLY like the out-of-the-box (OOTB) MuleSoft
+    # "Message Logging" policy: a repeatable list of logging configurations,
+    # each driven by DataWeave. The ONLY difference is the destination — instead
+    # of writing to the local gateway log, every rendered log line is forwarded
+    # to the configured OTLP ingestion endpoint below.
+    #
+    # Each entry mirrors the OOTB fields one-for-one:
+    #   Configuration Name | Message (DataWeave) | Conditional (DataWeave) |
+    #   Category | Level | Before Calling API | After Calling API
+    # =========================================================================
+    loggingConfigurations:
+      title: Logging Configuration
+      description: >-
+        A list of message-logging configurations. Each configuration renders a
+        DataWeave 'message' (optionally gated by a DataWeave 'conditional') and
+        forwards the result to the OTLP ingestion endpoint. Add one entry per
+        log line you want to emit.
+      type: array
+      items:
+        type: object
+        properties:
+          configurationName:
+            title: Configuration Name
+            description: A friendly name identifying this logging configuration.
+            type: string
+          message:
+            title: Message
+            description: >-
+              DataWeave expression that produces the content to log. It can read
+              headers, custom values, the payload, authentication data, and more.
+              Examples: '#[payload]', '#[attributes.headers[''id'']]',
+              '#[attributes.method ++ '' '' ++ attributes.path ++ '' -> '' ++
+              attributes.statusCode]'.
+            type: string
+            format: dataweave
+            # Make the full HTTP message available to the expression. `attributes`
+            # exposes method/path/headers/queryParams/statusCode; `payload`
+            # exposes the body (lazily read — see below); `authentication`
+            # exposes clientId/clientName/principal.
+            bindings:
+              attributes: true
+              authentication: true
+              payload:
+                mimeTypes:
+                  - json
+                  - xml
+                  - text
+          conditional:
+            title: Conditional (Optional)
+            description: >-
+              Optional DataWeave expression that decides whether this message is
+              logged. The message is only forwarded when the expression evaluates
+              to boolean true. Example: '#[attributes.headers[''id''] == ''1'']'.
+              Leave empty to always log.
+            type: string
+            format: dataweave
+            bindings:
+              attributes: true
+              authentication: true
+              payload:
+                mimeTypes:
+                  - json
+                  - xml
+                  - text
+          category:
+            title: Category (Optional)
+            description: >-
+              Optional category prefix included in the log sentence and emitted
+              as the 'category' attribute on the OTLP log record.
+            type: string
+          level:
+            title: Level
+            description: >-
+              Severity of the log line. Mapped to the OTLP severity number
+              (DEBUG=5, INFO=9, WARN=13, ERROR=17).
+            type: string
+            enum:
+              - INFO
+              - WARN
+              - ERROR
+              - DEBUG
+            default: INFO
+          beforeCallingApi:
+            title: Before Calling API
+            description: >-
+              Evaluate and forward this message during the REQUEST phase, before
+              the upstream API is called.
+            type: boolean
+            default: false
+          afterCallingApi:
+            title: After Calling API
+            description: >-
+              Evaluate and forward this message during the RESPONSE phase, after
+              the upstream API has been called (the response status code is then
+              available as 'attributes.statusCode').
+            type: boolean
+            default: true
+          alsoLogToMessageLogs:
+            title: Also Log to Message Logs
+            description: >-
+              When enabled (the default), the rendered line is ALSO written to
+              the local gateway/API instance message logs at the configured
+              Level — exactly like the OOTB Message Logging policy — in addition
+              to being forwarded to the OTLP endpoint. Uncheck to forward the
+              line to OTLP only and keep it out of the local logs.
+            type: boolean
+            default: true
+        required:
+          - configurationName
+          - message
+    # =========================================================================
+    # OTLP ingestion sink (any OTLP/HTTP observability platform)
+    # =========================================================================
+    otlp_endpoint:
+      title: OTLP Ingestion Endpoint
+      description: >-
+        Base URL of the OTLP/HTTP ingestion endpoint (an OpenTelemetry
+        Collector, or your observability platform's managed OTLP ingest URL).
+        Rendered log lines are POSTed to '<endpoint>/v1/logs'.
+      type: string
+      format: service
+    otlp_api_key:
+      title: Ingest License Key (api-key)
+      description: >-
+        Ingest license key for the observability platform. Sent verbatim as the
+        'api-key' header on every outbound OTLP transmission. Stored and
+        displayed as a secret.
+      type: string
+      # Secret masking: marks the value sensitive so Anypoint/API Manager masks
+      # it in the UI and never renders it in plaintext.
+      "@context":
+        "@characteristics":
+          - security:sensitive
+    # =========================================================================
+    # Exporter tuning (optional)
+    # =========================================================================
+    batch_max_size:
+      title: Batch Max Size
+      description: Maximum number of log records sent per OTLP export batch.
+      type: integer
+      default: 512
+    export_timeout_ms:
+      title: Export Timeout (ms)
+      description: Background exporter flush interval, in milliseconds.
+      type: integer
+      default: 1000
+  required:
+    - loggingConfigurations
+    - otlp_endpoint
+    - otlp_api_key

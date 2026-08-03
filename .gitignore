@@ -1,0 +1,12 @@
+# Rust / Cargo build output (root and definition sub-project)
+target/
+**/target/
+.pdk
+
+# Local Flex Gateway playground artifacts
+playground/config/custom-policies/*
+!playground/config/custom-policies/note.txt
+
+# Device-specific gateway registration / certificates — never commit
+registration.yaml
+certificate.yaml
